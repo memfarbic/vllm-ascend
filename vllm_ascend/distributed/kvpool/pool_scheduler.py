@@ -90,6 +90,48 @@ class KVPoolScheduler:
             need_to_allocate,
         )
 
+        try:
+            from vllm_ascend.trace import get_dsa_tracer
+
+            tracer = get_dsa_tracer()
+            if tracer.enabled:
+                blk_size = int(self._block_size) if int(self._block_size) > 0 else 1
+                try:
+                    tracer.record_prefix_cache(
+                        request_id=str(request.request_id),
+                        prefix_hit_tokens=int(num_external_hit_tokens),
+                        block_size=blk_size,
+                        source="kvpool",
+                        extra={"need_to_load_tokens": int(need_to_allocate)},
+                    )
+                except Exception:
+                    pass
+                hbm_hit_blocks = int(num_computed_tokens // blk_size)
+                kvpool_hit_blocks = int(num_external_hit_tokens // blk_size)
+                remote_new_blocks = int(max(0, num_external_hit_tokens - num_computed_tokens) // blk_size)
+                tracer.record_kv_io(
+                    tier="kvpool",
+                    op="lookup",
+                    request_id=str(request.request_id),
+                    bytes_read=0,
+                    read_ops=1,
+                    batch_size=None,
+                    latency_us=None,
+                    extra={
+                        "token_len_checked": int(token_len),
+                        "block_size_tokens": blk_size,
+                        "num_computed_tokens": int(num_computed_tokens),
+                        "num_external_hit_tokens": int(num_external_hit_tokens),
+                        "need_to_load_tokens": int(need_to_allocate),
+                        "HBM_hit_blocks": hbm_hit_blocks,
+                        "local_pool_hit_blocks": 0,
+                        "remote_pool_hit_blocks": remote_new_blocks,
+                        "kvpool_total_hit_blocks": kvpool_hit_blocks,
+                    },
+                )
+        except Exception:
+            pass
+
         if need_to_allocate <= 0:
             return 0, False
 

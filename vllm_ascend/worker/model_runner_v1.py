@@ -353,6 +353,7 @@ class NPUModelRunner(GPUModelRunner):
         )
         # for cleancode , actually the three attrs is defined in gpu_model_runner
         self.execute_model_state: ExecuteModelState | None = None
+        self._dsa_trace_step_idx: int = 0
         # None in the first PP rank. The rest are set after load_model.
         self.intermediate_tensors: IntermediateTensors | None = None
         self.reorder_batch_threshold: int | None = None
@@ -1389,6 +1390,17 @@ class NPUModelRunner(GPUModelRunner):
                     return EMPTY_MODEL_RUNNER_OUTPUT
                 return self.kv_connector_no_forward(scheduler_output,
                                                     self.vllm_config)
+
+            try:
+                from vllm_ascend.trace import get_dsa_tracer
+
+                tracer = get_dsa_tracer()
+                if tracer.enabled:
+                    tracer.set_step_context(self._dsa_trace_step_idx, list(self.input_batch.req_ids))
+                    self._dsa_trace_step_idx += 1
+            except Exception:
+                # Trace must never break execution.
+                pass
 
             if self.dynamic_eplb:
                 self.eplb_updator.forward_before()
