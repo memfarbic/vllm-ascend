@@ -105,6 +105,20 @@ class CPUKVCacheManager:
         )
         num_computed_tokens = len(computed_blocks[0]) * self.block_size
         self.req_to_computed_blocks[request_id] = computed_blocks[0]
+        try:
+            from vllm_ascend.trace import get_dsa_tracer
+
+            tracer = get_dsa_tracer()
+            if tracer.enabled:
+                tracer.record_prefix_cache(
+                    request_id=str(request_id),
+                    prefix_hit_tokens=int(num_computed_tokens),
+                    block_size=int(self.block_size),
+                    source="cpu_prefix",
+                    extra={"computed_blocks": int(len(computed_blocks[0]))},
+                )
+        except Exception:
+            pass
         # We should touch these blocks in the concurrent scenarios.
         self.block_pool.touch(computed_blocks)
 

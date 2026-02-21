@@ -296,7 +296,45 @@ class KVPoolWorker:
                     size_list_c = (
                         size_list[self.tp_rank % len(size_list) :] + size_list[: self.tp_rank % len(size_list)]
                     )
-                    self.m_store.get(key_list_c, addr_list_c, size_list_c)
+                    latency_us = None
+                    tracer = None
+                    try:
+                        from vllm_ascend.trace import get_dsa_tracer
+
+                        tracer = get_dsa_tracer()
+                    except Exception:
+                        tracer = None
+
+                    if tracer is not None and tracer.enabled:
+                        import time
+
+                        start_t = time.perf_counter()
+                        self.m_store.get(key_list_c, addr_list_c, size_list_c)
+                        latency_us = int((time.perf_counter() - start_t) * 1e6)
+                        try:
+                            def _sum_nested_sizes(sizes):
+                                total = 0
+                                for s in sizes:
+                                    if isinstance(s, (list, tuple)):
+                                        total += sum(int(x) for x in s)
+                                    else:
+                                        total += int(s)
+                                return total
+
+                            tracer.record_kv_io(
+                                tier="remote_pool",
+                                op="batch_get",
+                                request_id=request.req_id,
+                                bytes_read=_sum_nested_sizes(size_list_c),
+                                read_ops=len(key_list_c),
+                                batch_size=len(key_list_c),
+                                latency_us=latency_us,
+                                extra={"backend": type(self.m_store).__name__},
+                            )
+                        except Exception:
+                            pass
+                    else:
+                        self.m_store.get(key_list_c, addr_list_c, size_list_c)
 
     def wait_for_layer_load(self) -> None:
         for layerwise_retriever in self.layerwise_retrievers:

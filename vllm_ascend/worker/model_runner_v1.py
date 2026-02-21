@@ -369,6 +369,7 @@ class NPUModelRunner(GPUModelRunner):
         )
         # for cleancode , actually the three attrs is defined in gpu_model_runner
         self.execute_model_state: ExecuteModelState | None = None
+        self._dsa_trace_step_idx: int = 0
         # None in the first PP rank. The rest are set after load_model.
         self.intermediate_tensors: IntermediateTensors | None = None
         self.reorder_batch_threshold: int | None = None
@@ -1101,6 +1102,16 @@ class NPUModelRunner(GPUModelRunner):
                     )
                 num_reqs = self.input_batch.num_reqs
                 req_ids = self.input_batch.req_ids
+                try:
+                    from vllm_ascend.trace import get_dsa_tracer
+
+                    tracer = get_dsa_tracer()
+                    if tracer.enabled:
+                        tracer.set_step_context(self._dsa_trace_step_idx, list(req_ids))
+                        self._dsa_trace_step_idx += 1
+                except Exception:
+                    # Trace must never break execution.
+                    pass
                 tokens = [scheduler_output.num_scheduled_tokens[i] for i in req_ids]
                 num_scheduled_tokens_np = np.array(tokens, dtype=np.int32)
                 max_num_scheduled_tokens = int(num_scheduled_tokens_np.max())

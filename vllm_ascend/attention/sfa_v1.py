@@ -904,6 +904,127 @@ class AscendSFAImpl(MLAAttentionImpl):
             key_rope = self.gather_kv_cross_cp(key_rope, valid_block_ids)
             block_table = attn_metadata.sfa_cp_metadata.block_table_cp
 
+        # Optional DSA trace export. Must never break execution.
+        try:
+            import numpy as np
+
+            from vllm_ascend.trace import get_dsa_tracer
+
+            tracer = get_dsa_tracer()
+            if tracer.enabled:
+                if forward_context.in_profile_run:
+                    pass
+                else:
+                    torch_dynamo = getattr(torch, "_dynamo", None)
+                    if torch_dynamo is not None and getattr(torch_dynamo, "is_compiling", lambda: False)():
+                        pass
+                    elif tracer.decode_only and attn_metadata.attn_state not in {
+                        AscendAttentionState.DecodeOnly,
+                        AscendAttentionState.SpecDecoding,
+                    }:
+                        pass
+                    else:
+                        batch_req_ids = tracer.get_batch_req_ids() or []
+                        bt = block_table
+                        block_size = get_current_vllm_config().cache_config.block_size
+
+                        topk_np = topk_indices.detach().to("cpu").numpy()
+                        cum_query_lens = attn_metadata.cum_query_lens.detach().to("cpu").numpy()
+                        seq_lens = attn_metadata.seq_lens.detach().to("cpu").numpy()
+                        bt_cpu = bt.detach().to("cpu").numpy()
+
+                        num_tokens = topk_np.shape[0]
+                        token_to_req = np.searchsorted(
+                            cum_query_lens, np.arange(num_tokens), side="right"
+                        ).astype(np.int32)
+
+                        for tok_i in range(num_tokens):
+                            req_idx = int(token_to_req[tok_i])
+                            if req_idx < 0 or req_idx >= len(seq_lens):
+                                continue
+                            request_id = (
+                                batch_req_ids[req_idx] if req_idx < len(batch_req_ids) else f"req_idx_{req_idx}"
+                            )
+                            seq_len_current = int(seq_lens[req_idx])
+                            query_pos = seq_len_current - 1 if seq_len_current > 0 else None
+
+                            sel_pos_by_head = topk_np[tok_i]  # [num_heads, 2048]
+                            union_pos = np.unique(sel_pos_by_head.reshape(-1))
+                            unique_pos_count = int(union_pos.size)
+
+                            offset_min = offset_median = offset_max = None
+                            if query_pos is not None and unique_pos_count > 0:
+                                offsets = (query_pos - union_pos).astype(np.int64)
+                                offset_min = int(offsets.min())
+                                offset_median = int(np.median(offsets))
+                                offset_max = int(offsets.max())
+
+                            selected_block_ids = None
+                            unique_blocks = None
+                            tokens_per_block_stats = None
+                            prefix_cached_blocks = None
+                            dsa_prefix_intersection_ratio = None
+                            dsa_prefix_hot_blocks = None
+                            if unique_pos_count > 0 and block_size > 0:
+                                logical_block_idx = (union_pos // block_size).astype(np.int64)
+                                row = bt_cpu[req_idx]
+                                if logical_block_idx.size > 0:
+                                    logical_block_idx = np.clip(logical_block_idx, 0, row.shape[0] - 1)
+                                touched_blocks = row[logical_block_idx]
+                                uniq_blocks, counts = np.unique(touched_blocks, return_counts=True)
+                                selected_block_ids = uniq_blocks.astype(np.int64).tolist()
+                                unique_blocks = int(uniq_blocks.size)
+                                if counts.size > 0:
+                                    tokens_per_block_stats = {
+                                        "mean": float(counts.mean()),
+                                        "p50": float(np.percentile(counts, 50)),
+                                        "p95": float(np.percentile(counts, 95)),
+                                    }
+
+                                # Prefix cache interaction (logical block space).
+                                try:
+                                    prefix_hit_tokens = int(tracer.get_prefix_hit_tokens(request_id))
+                                except Exception:
+                                    prefix_hit_tokens = 0
+                                prefix_cached_blocks = int(prefix_hit_tokens // block_size) if block_size > 0 else 0
+                                if prefix_cached_blocks > 0:
+                                    logical_uniq, logical_cnts = np.unique(logical_block_idx, return_counts=True)
+                                    in_prefix = logical_uniq < prefix_cached_blocks
+                                    denom = int(max(1, logical_uniq.size))
+                                    dsa_prefix_intersection_ratio = float(int(in_prefix.sum()) / denom)
+                                    if np.any(in_prefix):
+                                        idx = np.argsort(-logical_cnts[in_prefix])
+                                        topk = min(16, int(idx.size))
+                                        hot_blocks = []
+                                        prefix_blocks = logical_uniq[in_prefix][idx[:topk]]
+                                        prefix_counts = logical_cnts[in_prefix][idx[:topk]]
+                                        for b, c in zip(prefix_blocks.tolist(), prefix_counts.tolist()):
+                                            hot_blocks.append({"logical_block": int(b), "selected_tokens": int(c)})
+                                        dsa_prefix_hot_blocks = hot_blocks
+
+                            tracer.record_topk_and_blocks(
+                                layer_name=str(layer_name),
+                                attn_state=str(attn_metadata.attn_state),
+                                block_size=int(block_size),
+                                request_id=request_id,
+                                req_idx=req_idx,
+                                seq_len_current=seq_len_current,
+                                query_token_pos=query_pos,
+                                selected_token_pos_by_head=sel_pos_by_head,
+                                selected_block_ids=selected_block_ids,
+                                unique_token_pos_count=unique_pos_count,
+                                offset_min=offset_min,
+                                offset_median=offset_median,
+                                offset_max=offset_max,
+                                unique_blocks=unique_blocks,
+                                tokens_per_touched_block_stats=tokens_per_block_stats,
+                                prefix_cached_blocks=prefix_cached_blocks,
+                                dsa_prefix_intersection_ratio=dsa_prefix_intersection_ratio,
+                                dsa_prefix_hot_blocks=dsa_prefix_hot_blocks,
+                            )
+        except Exception:
+            pass
+
         attn_output = torch.ops._C_ascend.npu_sparse_flash_attention(
             query=ql_nope,
             key=kv,

@@ -549,6 +549,23 @@ class KVCacheRecvingThread(threading.Thread):
 
         req_end_time = time.perf_counter()
         req_transfer_elapsed = (req_end_time - req_start_time) * 1000
+        try:
+            from vllm_ascend.trace import get_dsa_tracer
+
+            tracer = get_dsa_tracer()
+            if tracer.enabled:
+                tracer.record_kv_io(
+                    tier="remote_pool",
+                    op="batch_transfer_sync_read",
+                    request_id=str(remote_request_id),
+                    bytes_read=int(sum(int(x) for x in length_list)),
+                    read_ops=int(len(length_list)),
+                    batch_size=int(len(length_list)),
+                    latency_us=int((req_end_time - req_start_time) * 1e6),
+                    extra={"session_id": session_id, "num_blocks": int(num_blocks), "num_groups": int(num_transfer_groups)},
+                )
+        except Exception:
+            pass
         logger.info(
             "KV cache transfer for request %s took %.2f ms (%d groups,"
             " %d blocks). local_ip %s local_device_id %s remote_session_id %s",

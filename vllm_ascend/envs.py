@@ -117,6 +117,21 @@ env_variables: dict[str, Callable[[], Any]] = {
     "VLLM_ASCEND_FUSION_OP_TRANSPOSE_KV_CACHE_BY_BLOCK": lambda: bool(
         int(os.getenv("VLLM_ASCEND_FUSION_OP_TRANSPOSE_KV_CACHE_BY_BLOCK", "1"))
     ),
+    # ===== DSA trace =====
+    # Enable DSA trace export (0: disabled, 1: enabled).
+    "VLLM_ASCEND_DSA_TRACE": lambda: bool(int(os.getenv("VLLM_ASCEND_DSA_TRACE", "0"))),
+    # Output directory for JSONL trace files.
+    "VLLM_ASCEND_TRACE_DIR": lambda: os.getenv("VLLM_ASCEND_TRACE_DIR", "./trace_out"),
+    # Optional allowlist for layer names, comma-separated. Empty means all.
+    "VLLM_ASCEND_DSA_TRACE_LAYER_FILTER": lambda: os.getenv("VLLM_ASCEND_DSA_TRACE_LAYER_FILTER", ""),
+    # Sampling rate in [0, 1].
+    "VLLM_ASCEND_DSA_TRACE_SAMPLE_RATE": lambda: float(os.getenv("VLLM_ASCEND_DSA_TRACE_SAMPLE_RATE", "1.0")),
+    # Max model steps to trace. Negative means unlimited.
+    "VLLM_ASCEND_DSA_TRACE_MAX_STEPS": lambda: int(os.getenv("VLLM_ASCEND_DSA_TRACE_MAX_STEPS", "-1")),
+    # Only trace decode steps by default (reduces overhead and avoids prefill ambiguity).
+    "VLLM_ASCEND_DSA_TRACE_DECODE_ONLY": lambda: bool(int(os.getenv("VLLM_ASCEND_DSA_TRACE_DECODE_ONLY", "1"))),
+    # RNG seed for sampling decisions.
+    "VLLM_ASCEND_DSA_TRACE_SEED": lambda: int(os.getenv("VLLM_ASCEND_DSA_TRACE_SEED", "0")),
 }
 
 # end-env-vars-definition
