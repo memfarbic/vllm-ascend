@@ -325,14 +325,16 @@ git push -u origin <your-branch>
 
 ```bash
 git -C ~/work/vllm-ascend fetch --tags
-# git -C ~/work/vllm-ascend checkout v0.13.0rc1
+# git -C ~/work/vllm-ascend checkout tags/v0.13.0rc1
 ```
 
 **补充说明（重要：tag vs 分支）**：
 
-- 你如果执行 `git checkout v0.13.0rc1`（切到 **tag**），会进入 **detached HEAD**。这时 `git pull` 会报 `You are not currently on a branch`，因为你不在任何分支上，Git 不知道要把远端哪个分支合并到哪里。
+避免使用模糊写法：`git checkout v0.13.0rc1`（当 tag 和分支同名时很容易切到 tag）。
+
+- 你如果执行 `git checkout tags/v0.13.0rc1`（显式切到 **tag**），会进入 **detached HEAD**。这时 `git pull` 会报 `You are not currently on a branch`，因为你不在任何分支上，Git 不知道要把远端哪个分支合并到哪里。
 - **tag 是固定指针**：`v0.13.0rc1` 永远指向同一个提交，用于“可复现”；它不会随着我们后续提交而前进。
-- 如果你想获取我们后续 push 到远端 `origin/v0.13.0rc1` 的新 commit，需要切到一个**跟踪分支**（推荐做法）：
+- 如果你想获取我们后续 push 到远端 `origin/v0.13.0rc1-dev` 的新 commit，需要切到一个**跟踪分支**（推荐做法）：
 
 ```bash
 cd ~/work/vllm-ascend
@@ -341,7 +343,7 @@ cd ~/work/vllm-ascend
 git fetch origin
 
 # 建一个本地分支跟踪远端分支（避免和 tag 同名造成歧义）
-git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1
+git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1-dev
 
 # 之后更新就用 pull（建议 fast-forward）
 git pull --ff-only
@@ -366,7 +368,7 @@ git clone https://github.com/memfarbic/vllm-ascend.git
 cd vllm-ascend
 git fetch --tags
 # 示例：切到某个 tag/commit（按需修改）
-# git checkout v0.13.0rc1
+# git checkout tags/v0.13.0rc1
 
 # 记录版本信息（建议把输出粘到实验日志里）
 git rev-parse HEAD
@@ -443,7 +445,7 @@ git clone https://github.com/memfarbic/vllm-ascend.git vllm-ascend-v0.13.0rc1
 cd vllm-ascend-v0.13.0rc1
 
 git fetch --tags
-git checkout v0.13.0rc1
+git checkout tags/v0.13.0rc1
 
 git rev-parse HEAD
 git describe --tags --always
@@ -451,7 +453,7 @@ git describe --tags --always
 
 **重要：为什么你在 tag 上不能 `git pull`？**
 
-上面示例的 `git checkout v0.13.0rc1` 是切到 **tag**，因此会进入 **detached HEAD**。这对于“固定版本跑实验”是对的，但它的特性是：
+上面示例的 `git checkout tags/v0.13.0rc1` 是切到 **tag**，因此会进入 **detached HEAD**。这对于“固定版本跑实验”是对的，但它的特性是：
 
 - **不能直接 `git pull`**（你不在分支上）
 - **tag 不会前进**（不会自动包含我们后续的提交）
@@ -463,7 +465,7 @@ cd ~/work/vllm-ascend-v0.13.0rc1
 
 git fetch origin
 
-git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1
+git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1-dev
 
 git pull --ff-only
 ```

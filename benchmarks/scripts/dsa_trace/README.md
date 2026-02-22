@@ -300,7 +300,7 @@ git tag -l "v0.13*"
 切换到 tag（只读状态，不建议直接在 detached HEAD 上开发）：
 
 ```bash
-git checkout v0.13.0rc1
+git checkout tags/v0.13.0rc1
 ```
 
 ### 5.6 在 tag 上保留并移植本插桩改动（强烈建议用分支）
@@ -324,15 +324,19 @@ git cherry-pick 9c9108cc 2efc7c44
 
 可以，但**不推荐**，因为会产生 `tag` 与 `branch` 的 ref 歧义（同名的 `refs/tags/<name>` 与 `refs/heads/<name>` 同时存在）。
 
-如果你确实要这么做（例如分支名就叫 `v0.13.0rc1`），务必使用完整 ref 来避免歧义：
+如果你确实要这么做（例如分支名就叫 `v0.13.0rc1`），务必使用完整 ref 来避免歧义；更推荐使用 `v0.13.0rc1-dev` 这类不与 tag 同名的分支：
 
 ```bash
-# 从 tag 创建同名分支
-git checkout -b v0.13.0rc1 refs/tags/v0.13.0rc1
+# 推荐：从 tag 创建不与 tag 同名的分支
+git checkout -b v0.13.0rc1-dev refs/tags/v0.13.0rc1
+
+# 如确需同名分支（不推荐）：
+# git checkout -b v0.13.0rc1 refs/tags/v0.13.0rc1
 
 # 后续要明确引用 tag 或 branch：
 git show refs/tags/v0.13.0rc1
-git show refs/heads/v0.13.0rc1
+git show refs/heads/v0.13.0rc1-dev
+# git show refs/heads/v0.13.0rc1  # 同名分支时才需要
 ```
 
 #### 5.6.3 迁移过程中可能遇到的冲突类型与处理建议
@@ -359,8 +363,8 @@ git show refs/heads/v0.13.0rc1
 # 1) 拉取 tag
 git fetch --tags
 
-# 2) 从 tag 创建分支（这里示例使用“分支名=tag 名”）
-git checkout -b v0.13.0rc1 refs/tags/v0.13.0rc1
+# 2) 从 tag 创建分支（推荐避免与 tag 同名）
+git checkout -b v0.13.0rc1-dev refs/tags/v0.13.0rc1
 
 # 3) 移植插桩与脚本提交（可能会有冲突）
 git cherry-pick 9c9108cc
