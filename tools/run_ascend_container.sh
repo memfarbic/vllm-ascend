@@ -2,28 +2,23 @@
 set -euo pipefail
 
 CONTAINER_NAME="${CONTAINER_NAME:-vllm_ascend_x}"
-IMAGE="${IMAGE:-quay.io/ascend/vllm-ascend:YOUR_TAG}"
+IMAGE="${IMAGE:-quay.io/ascend/vllm-ascend:v0.13.0rc1-a3}"
 
-# Resolve repo root on the host so you can run this script
-# from anywhere (not necessarily from the repo root).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SRC_MOUNT_WORKSPACE_HOST="${SRC_MOUNT_WORKSPACE_HOST:-${REPO_ROOT}}"
 DST_MOUNT_WORKSPACE_CONTAINER="${DST_MOUNT_WORKSPACE_CONTAINER:-/vllm-workspace/vllm-ascend}"
 
-# Optional proxies (avoid hardcoding secrets)
 HTTP_PROXY="${HTTP_PROXY:-}"
 HTTPS_PROXY="${HTTPS_PROXY:-}"
 NO_PROXY="${NO_PROXY:-localhost,127.0.0.1,0.0.0.0}"
 
-# Enumerate davinci devices if present.
 DAVINCI_DEVS=()
 for d in /dev/davinci*; do
   [[ -e "$d" ]] && DAVINCI_DEVS+=(--device="$d")
 done
 
-# Basic docker opts
 DOCKER_OPTS=(
   docker run
   --privileged
@@ -33,14 +28,12 @@ DOCKER_OPTS=(
   -itd
 )
 
-# Device opts (always required)
 DEVICE_OPTS=(
   --device=/dev/davinci_manager
   --device=/dev/devmm_svm
   --device=/dev/hisi_hdc
 )
 
-# Mount opts (Ascend driver/tools)
 MOUNT_OPTS=(
   -v /usr/local/dcmi:/usr/local/dcmi
   -v /etc/hccn.conf:/etc/hccn.conf
@@ -54,7 +47,6 @@ MOUNT_OPTS=(
   -v /dev/shm:/dev/shm
 )
 
-# Workspace/data mounts
 WORKSPACE_OPTS=(
   -v "${HOME}/.cache:/root/.cache"
   -v /etc/localtime:/etc/localtime
@@ -63,7 +55,6 @@ WORKSPACE_OPTS=(
   -v /data:/data
 )
 
-# Environment variables
 ENV_OPTS=(
   -e VLLM_USE_MODELSCOPE=True
   -e no_proxy="${NO_PROXY}"
@@ -76,7 +67,6 @@ if [[ -n "${HTTPS_PROXY}" ]]; then
   ENV_OPTS+=( -e https_proxy="${HTTPS_PROXY}" )
 fi
 
-# Final
 "${DOCKER_OPTS[@]}" \
   "${DAVINCI_DEVS[@]}" \
   "${DEVICE_OPTS[@]}" \
