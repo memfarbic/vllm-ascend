@@ -391,6 +391,101 @@ pip show vllm-ascend | sed -n '1,160p'
 
 **重要（风险提示）**：这种方式容器删掉就丢状态；若要可复现与可追溯，仍建议使用 5.4.1（宿主机持久化）。
 
+
+---
+
+## 5.5 在昇腾单机上启动容器做测试（推荐脚本 + 单命令）
+
+本节适用于：你在一台昇腾机器上用官方/内部镜像启动容器，只做**跑服务/跑 benchmark/跑 trace**，不在容器内提交/推送代码。
+
+### 5.5.1 版本目录组织建议（强烈建议）
+
+如果你要同时测试多个 tag/分支，建议在宿主机用“目录名=版本名”的方式管理源码，例如：
+
+- `~/work/vllm-ascend-v0.13.0rc1/`
+- `~/work/vllm-ascend-v0.13.0rc2/`
+- `~/work/vllm-ascend-main/`
+
+这样你可以并行挂载不同目录进不同容器，互不覆盖。
+
+示例：
+
+```bash
+mkdir -p ~/work
+cd ~/work
+
+git clone https://github.com/memfarbic/vllm-ascend.git vllm-ascend-v0.13.0rc1
+cd vllm-ascend-v0.13.0rc1
+
+git fetch --tags
+git checkout v0.13.0rc1
+
+git rev-parse HEAD
+git describe --tags --always
+```
+
+> 内网环境请把 `git clone` URL 替换为内网 mirror；目录命名方式不变。
+
+### 5.5.2 推荐方式：使用脚本启动（可维护、可复用）
+
+仓库提供了一个推荐脚本（路径见下方），特点：
+
+- 不硬编码代理账号密码（用环境变量传入）
+- 自动枚举 `/dev/davinci*` 设备节点（按机器实际情况）
+- 默认挂载常用 Ascend 驱动/工具与 cache 目录
+
+示例（宿主机）：
+
+```bash
+export IMAGE=quay.io/ascend/vllm-ascend:YOUR_TAG
+export CONTAINER_NAME=vllm_ascend_x
+export SRC_MOUNT_WORKSPACE_HOST=$HOME/work/vllm-ascend-v0.13.0rc1
+export DST_MOUNT_WORKSPACE_CONTAINER=/workspace
+
+# 可选：代理（建议不要把账号密码写死到脚本里）
+# export HTTP_PROXY=http://user:pass@proxy:8080/
+# export HTTPS_PROXY=http://user:pass@proxy:8080/
+# export NO_PROXY=localhost,127.0.0.1,0.0.0.0
+
+bash tools/run_ascend_container.sh
+```
+
+容器启动后你可以进入：
+
+```bash
+docker exec -it $CONTAINER_NAME bash
+```
+
+### 5.5.3 等价的单条 `docker run`（便于临时复制粘贴）
+
+当你只想快速启动一次，也可以用单命令（参数按需调整）：
+
+```bash
+docker run --privileged --name vllm_ascend_x --net=host --ipc=host -itd \
+  --device=/dev/davinci_manager --device=/dev/devmm_svm --device=/dev/hisi_hdc \
+  -v /usr/local/dcmi:/usr/local/dcmi \
+  -v /etc/hccn.conf:/etc/hccn.conf \
+  -v /usr/local/Ascend/driver/tools/hccn_tool:/usr/local/Ascend/driver/tools/hccn_tool \
+  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+  -v /etc/ascend_install.info:/etc/ascend_install.info \
+  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
+  -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+  -v /var/log/npu/:/usr/slog \
+  -v /etc/hosts:/etc/hosts \
+  -v /dev/shm:/dev/shm \
+  -v $HOME/.cache:/root/.cache \
+  -v /etc/localtime:/etc/localtime \
+  -v $HOME/work/vllm-ascend-v0.13.0rc1:/workspace \
+  -v /mnt:/mnt -v /data:/data \
+  -e VLLM_USE_MODELSCOPE=True \
+  ${HTTP_PROXY:+-e http_proxy=$HTTP_PROXY} \
+  ${HTTPS_PROXY:+-e https_proxy=$HTTPS_PROXY} \
+  -e no_proxy="${NO_PROXY:-localhost,127.0.0.1,0.0.0.0}" \
+  quay.io/ascend/vllm-ascend:YOUR_TAG bash
+```
+
+> 提示：如果你机器上有 `davinci0..davinci15`，你可以额外加 `--device=/dev/davinci0 ...`；推荐脚本会自动枚举这些节点。
+
 ---
 
 ## 6. 什么时候需要自己 build 镜像？什么时候不需要？
