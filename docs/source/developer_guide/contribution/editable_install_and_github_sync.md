@@ -38,7 +38,7 @@ pip show vllm-ascend
 
 ```bash
 git clone <repo> /vllm-workspace/vllm
-git clone <repo> /vllm-workspace/vllm-ascend
+git clone https://github.com/memfarbic/vllm-ascend.git /vllm-workspace/vllm-ascend
 ```
 
 2) 以 editable 方式安装：
@@ -315,42 +315,75 @@ git push -u origin <your-branch>
 
 ### 5.4.1 推荐工作流：宿主机保存源码 + 挂载进容器
 
-1) 宿主机（内网只需能 clone/fetch 即可）：
+下面以“只测试 `vllm-ascend`”为主线给出**完整可复现步骤**。
+
+#### Step 0：选择一个固定版本（tag/commit）
+
+**重要**：只做测试也建议固定 `tag/commit`，这样你的实验结果可复现。
+
+例如（仅示例）：
+
+```bash
+git -C ~/work/vllm-ascend fetch --tags
+# git -C ~/work/vllm-ascend checkout v0.13.0rc1
+```
+
+#### Step 1：宿主机准备源码（持久化保存）
 
 ```bash
 mkdir -p ~/work
 cd ~/work
 
-git clone <INTRANET_URL>/vllm.git
-git clone <INTRANET_URL>/vllm-ascend.git
+# 直接硬编码当前仓库 URL（如果你在内网，请把这个 URL 替换成内网 mirror）
+git clone https://github.com/memfarbic/vllm-ascend.git
 
-# 可选：切到你要测试的 tag/commit（保持可复现）
-cd ~/work/vllm-ascend
-git checkout <tag_or_commit>
-cd ~/work/vllm
-git checkout <tag_or_commit>
+# 进入仓库并切到你要测试的版本
+cd vllm-ascend
+git fetch --tags
+# 示例：切到某个 tag/commit（按需修改）
+# git checkout v0.13.0rc1
+
+# 记录版本信息（建议把输出粘到实验日志里）
+git rev-parse HEAD
+git describe --tags --always
 ```
 
-2) 启动容器，把宿主机源码挂载到容器工作区：
+#### Step 2：启动容器并挂载源码
 
 ```bash
-docker run --rm -it \
-  -v ~/work/vllm:/vllm-workspace/vllm \
-  -v ~/work/vllm-ascend:/vllm-workspace/vllm-ascend \
-  <image> bash
+docker run --rm -it   -v ~/work/vllm-ascend:/vllm-workspace/vllm-ascend   quay.io/ascend/vllm-ascend:<tag> bash
 ```
 
-3) 容器内确认 editable 安装指向挂载目录（第一次建议执行一次；之后通常不用重复）：
+> 说明：如果你的镜像工作区路径不是 `/vllm-workspace/vllm-ascend`，请按实际路径调整挂载点。
+
+#### Step 3：容器内执行/确认 editable 安装指向挂载目录
+
+**重要**：首次进入容器建议执行一次 `pip install -e`，确保 import 指向挂载目录。
 
 ```bash
-pip install -e /vllm-workspace/vllm
 pip install -e /vllm-workspace/vllm-ascend
 
-python3 -c "import vllm,os; print(os.path.realpath(vllm.__file__))"
+# 验证 import 来源路径
 python3 -c "import vllm_ascend,os; print(os.path.realpath(vllm_ascend.__file__))"
+
+# 验证 pip 看到的 editable 位置
+pip show vllm-ascend | sed -n '1,160p'
 ```
 
-4) 在容器内跑服务/跑测试/跑采集即可。
+你期望看到的效果：
+
+- `python3 -c ...` 输出路径落在 `/vllm-workspace/vllm-ascend/...`
+- `pip show vllm-ascend` 中包含 `Editable project location: /vllm-workspace/vllm-ascend`
+
+#### Step 4：容器内只跑测试/跑服务（不提交/不推送）
+
+此时你只需要在容器内执行你的测试流程，例如：
+
+- 启动 `vllm serve ...`
+- 运行 benchmark
+- 运行我们提供的 trace 回放脚本
+
+如果你要换版本：**退出容器 → 宿主机 `git checkout <tag/commit>` → 重新启动容器**。
 
 ### 5.4.2 备选工作流：容器内切换 tag（只读，适合临时对比）
 
