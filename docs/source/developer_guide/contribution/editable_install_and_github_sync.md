@@ -328,6 +328,31 @@ git -C ~/work/vllm-ascend fetch --tags
 # git -C ~/work/vllm-ascend checkout v0.13.0rc1
 ```
 
+**补充说明（重要：tag vs 分支）**：
+
+- 你如果执行 `git checkout v0.13.0rc1`（切到 **tag**），会进入 **detached HEAD**。这时 `git pull` 会报 `You are not currently on a branch`，因为你不在任何分支上，Git 不知道要把远端哪个分支合并到哪里。
+- **tag 是固定指针**：`v0.13.0rc1` 永远指向同一个提交，用于“可复现”；它不会随着我们后续提交而前进。
+- 如果你想获取我们后续 push 到远端 `origin/v0.13.0rc1` 的新 commit，需要切到一个**跟踪分支**（推荐做法）：
+
+```bash
+cd ~/work/vllm-ascend
+
+# 先确保拿到远端更新
+git fetch origin
+
+# 建一个本地分支跟踪远端分支（避免和 tag 同名造成歧义）
+git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1
+
+# 之后更新就用 pull（建议 fast-forward）
+git pull --ff-only
+```
+
+如果你只想回到“严格固定的 tag 状态”做复现实验：
+
+```bash
+git switch --detach tags/v0.13.0rc1
+```
+
 #### Step 1：宿主机准备源码（持久化保存）
 
 ```bash
@@ -422,6 +447,31 @@ git checkout v0.13.0rc1
 
 git rev-parse HEAD
 git describe --tags --always
+```
+
+**重要：为什么你在 tag 上不能 `git pull`？**
+
+上面示例的 `git checkout v0.13.0rc1` 是切到 **tag**，因此会进入 **detached HEAD**。这对于“固定版本跑实验”是对的，但它的特性是：
+
+- **不能直接 `git pull`**（你不在分支上）
+- **tag 不会前进**（不会自动包含我们后续的提交）
+
+如果你希望把我们后续新增的 commit（例如文档/脚本更新）拉下来，请改用跟踪远端分支：
+
+```bash
+cd ~/work/vllm-ascend-v0.13.0rc1
+
+git fetch origin
+
+git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1
+
+git pull --ff-only
+```
+
+你依然可以在需要时切回 tag 做严格复现：
+
+```bash
+git switch --detach tags/v0.13.0rc1
 ```
 
 > 内网环境请把 `git clone` URL 替换为内网 mirror；目录命名方式不变。
