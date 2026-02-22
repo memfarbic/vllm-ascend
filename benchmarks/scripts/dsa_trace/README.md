@@ -320,23 +320,23 @@ git checkout -b <your_branch_name> refs/tags/v0.13.0rc1
 git cherry-pick 9c9108cc 2efc7c44
 ```
 
-#### 5.6.2 分支名是否可以和 tag 同名？
+#### 5.6.2 分支命名建议（推荐 `*-dev`）
 
-可以，但**不推荐**，因为会产生 `tag` 与 `branch` 的 ref 歧义（同名的 `refs/tags/<name>` 与 `refs/heads/<name>` 同时存在）。
+为避免误操作与歧义，建议遵循：
 
-如果你确实要这么做（例如分支名就叫 `v0.13.0rc1`），务必使用完整 ref 来避免歧义；更推荐使用 `v0.13.0rc1-dev` 这类不与 tag 同名的分支：
+- **固定版本**：显式使用 `tags/<tag>`（例如 `tags/v0.13.0rc1`）
+- **可更新工作分支**：使用 `*-dev`（例如 `v0.13.0rc1-dev`）并跟踪远端分支
+
+示例：
 
 ```bash
-# 推荐：从 tag 创建不与 tag 同名的分支
+# 从 tag 创建可持续更新的工作分支
+git fetch --tags
+
 git checkout -b v0.13.0rc1-dev refs/tags/v0.13.0rc1
 
-# 如确需同名分支（不推荐）：
-# git checkout -b v0.13.0rc1 refs/tags/v0.13.0rc1
-
-# 后续要明确引用 tag 或 branch：
-git show refs/tags/v0.13.0rc1
-git show refs/heads/v0.13.0rc1-dev
-# git show refs/heads/v0.13.0rc1  # 同名分支时才需要
+# 推到远端并设置 upstream
+git push -u origin v0.13.0rc1-dev
 ```
 
 #### 5.6.3 迁移过程中可能遇到的冲突类型与处理建议

@@ -330,7 +330,7 @@ git -C ~/work/vllm-ascend fetch --tags
 
 **补充说明（重要：tag vs 分支）**：
 
-避免使用模糊写法：`git checkout v0.13.0rc1`（当 tag 和分支同名时很容易切到 tag）。
+避免使用模糊写法：`git checkout v0.13.0rc1`，建议显式写：`git checkout tags/v0.13.0rc1`。
 
 - 你如果执行 `git checkout tags/v0.13.0rc1`（显式切到 **tag**），会进入 **detached HEAD**。这时 `git pull` 会报 `You are not currently on a branch`，因为你不在任何分支上，Git 不知道要把远端哪个分支合并到哪里。
 - **tag 是固定指针**：`v0.13.0rc1` 永远指向同一个提交，用于“可复现”；它不会随着我们后续提交而前进。
@@ -342,7 +342,7 @@ cd ~/work/vllm-ascend
 # 先确保拿到远端更新
 git fetch origin
 
-# 建一个本地分支跟踪远端分支（避免和 tag 同名造成歧义）
+# 建一个本地分支跟踪远端分支（用于持续 pull 更新）
 git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1-dev
 
 # 之后更新就用 pull（建议 fast-forward）
