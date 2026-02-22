@@ -451,16 +451,33 @@ git push -u origin HEAD
 
 **数据源**：HuggingFace `allenai/ruler_data`
 
+> 注意：`allenai/ruler_data` 在 HuggingFace 上以 `*.tgz` 归档形式发布（例如 `data_100_samples.tgz`、`data_debug.tgz`），
+> 不能用 `datasets.load_dataset()` 直接加载。本仓库的 `prepare_ruler.py` 会自动下载并解压归档，然后读取
+> `data/ruler/<task>/validation_4096.jsonl`。
+
 ```bash
+# 建议先用小包验证链路（更快）
 python3 benchmarks/scripts/dsa_trace/prepare_ruler.py \
   --output benchmarks/datasets/dsa_trace/ruler.prompts.jsonl \
-  --dataset allenai/ruler_data \
+  --archive data_debug.tgz \
   --num-prompts 200 \
   --max-tokens 256 \
   --seed 0
+
+# 需要更多样本时再用大包（下载/解压更慢）
+# python3 benchmarks/scripts/dsa_trace/prepare_ruler.py \
+#   --output benchmarks/datasets/dsa_trace/ruler.prompts.jsonl \
+#   --archive data_100_samples.tgz \
+#   --num-prompts 200 \
+#   --max-tokens 256 \
+#   --seed 0
 ```
 
-可选：`--task-allowlist qa_single_hop_synthetic,variable_tracking` 只保留特定任务类型。
+可选：
+
+- `--task-allowlist qa_1,qa_2,vt,niah_single_1`：只保留特定任务类型（task 名来自归档目录名）。
+- `--cache-dir /path/to/cache`：指定 tgz 下载缓存目录（默认 `~/.cache/vllm-ascend/datasets`）。
+
 
 ### 7.2 D2: LongBench v2
 
