@@ -299,6 +299,65 @@ git push -u origin <your-branch>
 
 
 
+
+---
+
+## 5.4 只做测试（不在容器内提交/推送）怎么做更好？
+
+如果你明确 **不在 Docker 容器内修改代码并 push**，容器只用于“跑服务/跑 benchmark/跑 trace 采集”，最推荐把容器当成**纯运行环境**。
+
+**重要（强烈建议）**：
+
+- **代码放在容器外持久化**：把源码放在宿主机目录（或 NFS/共享盘），容器销毁也不会丢。
+- **容器里不配置 Git 凭据**：不需要 SSH key / PAT，减少泄露风险。
+- **用 bind mount 覆盖容器内工作区**：保证 `pip install -e` 指向你挂载进去的源码目录。
+- **用 tag/commit 控制实验可复现**：在宿主机 `git checkout <tag/commit>`，容器内立刻生效。
+
+### 5.4.1 推荐工作流：宿主机保存源码 + 挂载进容器
+
+1) 宿主机（内网只需能 clone/fetch 即可）：
+
+```bash
+mkdir -p ~/work
+cd ~/work
+
+git clone <INTRANET_URL>/vllm.git
+git clone <INTRANET_URL>/vllm-ascend.git
+
+# 可选：切到你要测试的 tag/commit（保持可复现）
+cd ~/work/vllm-ascend
+git checkout <tag_or_commit>
+cd ~/work/vllm
+git checkout <tag_or_commit>
+```
+
+2) 启动容器，把宿主机源码挂载到容器工作区：
+
+```bash
+docker run --rm -it \
+  -v ~/work/vllm:/vllm-workspace/vllm \
+  -v ~/work/vllm-ascend:/vllm-workspace/vllm-ascend \
+  <image> bash
+```
+
+3) 容器内确认 editable 安装指向挂载目录（第一次建议执行一次；之后通常不用重复）：
+
+```bash
+pip install -e /vllm-workspace/vllm
+pip install -e /vllm-workspace/vllm-ascend
+
+python3 -c "import vllm,os; print(os.path.realpath(vllm.__file__))"
+python3 -c "import vllm_ascend,os; print(os.path.realpath(vllm_ascend.__file__))"
+```
+
+4) 在容器内跑服务/跑测试/跑采集即可。
+
+### 5.4.2 备选工作流：容器内切换 tag（只读，适合临时对比）
+
+如果你完全不改代码、只做临时对比，也可以直接在容器内 `git checkout <tag>` 然后运行。
+
+**重要（风险提示）**：这种方式容器删掉就丢状态；若要可复现与可追溯，仍建议使用 5.4.1（宿主机持久化）。
+
 ---
 
 ## 6. 什么时候需要自己 build 镜像？什么时候不需要？
