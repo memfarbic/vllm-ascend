@@ -439,8 +439,10 @@ git describe --tags --always
 ```bash
 export IMAGE=quay.io/ascend/vllm-ascend:YOUR_TAG
 export CONTAINER_NAME=vllm_ascend_x
-export SRC_MOUNT_WORKSPACE_HOST=$HOME/work/vllm-ascend-v0.13.0rc1
-export DST_MOUNT_WORKSPACE_CONTAINER=/workspace
+
+cd $HOME/work/vllm-ascend-v0.13.0rc1
+export SRC_MOUNT_WORKSPACE_HOST="$(pwd)"
+export DST_MOUNT_WORKSPACE_CONTAINER=/vllm-workspace/vllm-ascend
 
 # 可选：代理（建议不要把账号密码写死到脚本里）
 # export HTTP_PROXY=http://user:pass@proxy:8080/
@@ -475,7 +477,7 @@ docker run --privileged --name vllm_ascend_x --net=host --ipc=host -itd \
   -v /dev/shm:/dev/shm \
   -v $HOME/.cache:/root/.cache \
   -v /etc/localtime:/etc/localtime \
-  -v $HOME/work/vllm-ascend-v0.13.0rc1:/workspace \
+  -v $HOME/work/vllm-ascend-v0.13.0rc1:/vllm-workspace/vllm-ascend \
   -v /mnt:/mnt -v /data:/data \
   -e VLLM_USE_MODELSCOPE=True \
   ${HTTP_PROXY:+-e http_proxy=$HTTP_PROXY} \

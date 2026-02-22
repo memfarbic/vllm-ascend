@@ -3,8 +3,14 @@ set -euo pipefail
 
 CONTAINER_NAME="${CONTAINER_NAME:-vllm_ascend_x}"
 IMAGE="${IMAGE:-quay.io/ascend/vllm-ascend:YOUR_TAG}"
-SRC_MOUNT_WORKSPACE_HOST="${SRC_MOUNT_WORKSPACE_HOST:-${HOME}/work/vllm-ascend}"
-DST_MOUNT_WORKSPACE_CONTAINER="${DST_MOUNT_WORKSPACE_CONTAINER:-/workspace}"
+
+# Resolve repo root on the host so you can run this script
+# from anywhere (not necessarily from the repo root).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+SRC_MOUNT_WORKSPACE_HOST="${SRC_MOUNT_WORKSPACE_HOST:-${REPO_ROOT}}"
+DST_MOUNT_WORKSPACE_CONTAINER="${DST_MOUNT_WORKSPACE_CONTAINER:-/vllm-workspace/vllm-ascend}"
 
 # Optional proxies (avoid hardcoding secrets)
 HTTP_PROXY="${HTTP_PROXY:-}"
