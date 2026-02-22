@@ -109,4 +109,5 @@ If you find any problem when contributing, you can feel free to submit a PR to i
 :maxdepth: 1
 testing
 multi_node_test
+editable_install_and_github_sync
 :::
