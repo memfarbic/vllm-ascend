@@ -38,7 +38,7 @@ pip show vllm-ascend
 
 ```bash
 git clone <repo> /vllm-workspace/vllm
-git clone https://github.com/memfarbic/vllm-ascend.git /vllm-workspace/vllm-ascend
+git clone -b v0.13.0rc1-dev --single-branch https://github.com/memfarbic/vllm-ascend.git /vllm-workspace/vllm-ascend
 ```
 
 2) 以 editable 方式安装：
@@ -311,49 +311,24 @@ git push -u origin <your-branch>
 - **代码放在容器外持久化**：把源码放在宿主机目录（或 NFS/共享盘），容器销毁也不会丢。
 - **容器里不配置 Git 凭据**：不需要 SSH key / PAT，减少泄露风险。
 - **用 bind mount 覆盖容器内工作区**：保证 `pip install -e` 指向你挂载进去的源码目录。
-- **用 tag/commit 控制实验可复现**：在宿主机 `git checkout <tag/commit>`，容器内立刻生效。
+- **默认用分支持续更新，必要时再用 tag/commit 固定复现**：在宿主机 `git pull --ff-only` 更新；需要严格复现时再 `git checkout tags/<tag>`（会进入 detached HEAD）。
 
 ### 5.4.1 推荐工作流：宿主机保存源码 + 挂载进容器
 
 下面以“只测试 `vllm-ascend`”为主线给出**完整可复现步骤**。
 
-#### Step 0：选择一个固定版本（tag/commit）
+#### Step 0：选择模式：持续更新分支（默认）或固定版本（tag/commit）
 
-**重要**：只做测试也建议固定 `tag/commit`，这样你的实验结果可复现。
+**重要**：
 
-例如（仅示例）：
-
-```bash
-git -C ~/work/vllm-ascend fetch --tags
-# git -C ~/work/vllm-ascend checkout tags/v0.13.0rc1
-```
+- **持续更新（推荐）**：直接使用分支 `v0.13.0rc1-dev`，后续用 `git pull --ff-only` 更新。
+- **严格复现（可选）**：只在你需要“锁死到某个版本”时，再显式切到 `tags/<tag>`（会进入 detached HEAD）。
 
 **补充说明（重要：tag vs 分支）**：
 
-避免使用模糊写法：`git checkout v0.13.0rc1`，建议显式写：`git checkout tags/v0.13.0rc1`。
-
-- 你如果执行 `git checkout tags/v0.13.0rc1`（显式切到 **tag**），会进入 **detached HEAD**。这时 `git pull` 会报 `You are not currently on a branch`，因为你不在任何分支上，Git 不知道要把远端哪个分支合并到哪里。
-- **tag 是固定指针**：`v0.13.0rc1` 永远指向同一个提交，用于“可复现”；它不会随着我们后续提交而前进。
-- 如果你想获取我们后续 push 到远端 `origin/v0.13.0rc1-dev` 的新 commit，需要切到一个**跟踪分支**（推荐做法）：
-
-```bash
-cd ~/work/vllm-ascend
-
-# 先确保拿到远端更新
-git fetch origin
-
-# 建一个本地分支跟踪远端分支（用于持续 pull 更新）
-git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1-dev
-
-# 之后更新就用 pull（建议 fast-forward）
-git pull --ff-only
-```
-
-如果你只想回到“严格固定的 tag 状态”做复现实验：
-
-```bash
-git switch --detach tags/v0.13.0rc1
-```
+- 避免使用模糊写法：`git checkout v0.13.0rc1`，建议显式写：`git checkout tags/v0.13.0rc1`。
+- 如果你切到 `tags/v0.13.0rc1` 会进入 **detached HEAD**，此时**不能直接 `git pull`**。
+- 要持续更新，请始终待在 `v0.13.0rc1-dev`（分支）上。
 
 #### Step 1：宿主机准备源码（持久化保存）
 
@@ -362,23 +337,28 @@ mkdir -p ~/work
 cd ~/work
 
 # 直接硬编码当前仓库 URL（如果你在内网，请把这个 URL 替换成内网 mirror）
-git clone https://github.com/memfarbic/vllm-ascend.git
+# 推荐：直接 clone 到可持续更新分支（避免后续 detached HEAD / pull 失败）
+git clone -b v0.13.0rc1-dev --single-branch https://github.com/memfarbic/vllm-ascend.git vllm-ascend-v0.13.0rc1
 
-# 进入仓库并切到你要测试的版本
-cd vllm-ascend
-git fetch --tags
-# 示例：切到某个 tag/commit（按需修改）
-# git checkout tags/v0.13.0rc1
+# 进入仓库（此时已在可持续更新分支上）
+cd vllm-ascend-v0.13.0rc1
 
 # 记录版本信息（建议把输出粘到实验日志里）
 git rev-parse HEAD
 git describe --tags --always
+
+# 后续更新（推荐 fast-forward）
+git pull --ff-only
+
+# 如需严格复现（可选）：显式切到 tag（会进入 detached HEAD，之后不要再用 git pull）
+# git fetch --tags
+# git checkout tags/v0.13.0rc1
 ```
 
 #### Step 2：启动容器并挂载源码
 
 ```bash
-docker run --rm -it   -v ~/work/vllm-ascend:/vllm-workspace/vllm-ascend   quay.io/ascend/vllm-ascend:<tag> bash
+docker run --rm -it   -v ~/work/vllm-ascend-v0.13.0rc1:/vllm-workspace/vllm-ascend   quay.io/ascend/vllm-ascend:<tag> bash
 ```
 
 > 说明：如果你的镜像工作区路径不是 `/vllm-workspace/vllm-ascend`，请按实际路径调整挂载点。
@@ -410,7 +390,7 @@ pip show vllm-ascend | sed -n '1,160p'
 - 运行 benchmark
 - 运行我们提供的 trace 回放脚本
 
-如果你要换版本：**退出容器 → 宿主机 `git checkout <tag/commit>` → 重新启动容器**。
+如果你要更新代码：**退出容器 → 宿主机 `git pull --ff-only`（保持在 `v0.13.0rc1-dev`）→ 重新启动容器**。如果你要固定到某个版本复现：宿主机 `git checkout tags/<tag/commit>`（会进入 detached HEAD）。
 
 ### 5.4.2 备选工作流：容器内切换 tag（只读，适合临时对比）
 
@@ -441,39 +421,27 @@ pip show vllm-ascend | sed -n '1,160p'
 mkdir -p ~/work
 cd ~/work
 
-git clone https://github.com/memfarbic/vllm-ascend.git vllm-ascend-v0.13.0rc1
+# 推荐：clone 到可持续更新分支（后续可直接 git pull）
+git clone -b v0.13.0rc1-dev --single-branch https://github.com/memfarbic/vllm-ascend.git vllm-ascend-v0.13.0rc1
 cd vllm-ascend-v0.13.0rc1
-
-git fetch --tags
-git checkout tags/v0.13.0rc1
 
 git rev-parse HEAD
 git describe --tags --always
-```
 
-**重要：为什么你在 tag 上不能 `git pull`？**
-
-上面示例的 `git checkout tags/v0.13.0rc1` 是切到 **tag**，因此会进入 **detached HEAD**。这对于“固定版本跑实验”是对的，但它的特性是：
-
-- **不能直接 `git pull`**（你不在分支上）
-- **tag 不会前进**（不会自动包含我们后续的提交）
-
-如果你希望把我们后续新增的 commit（例如文档/脚本更新）拉下来，请改用跟踪远端分支：
-
-```bash
-cd ~/work/vllm-ascend-v0.13.0rc1
-
-git fetch origin
-
-git switch -c v0.13.0rc1-dev --track origin/v0.13.0rc1-dev
-
+# 后续更新（推荐 fast-forward）
 git pull --ff-only
+
+# 如需严格复现（可选）：显式切到 tag（会进入 detached HEAD，之后不要再用 git pull）
+# git fetch --tags
+# git checkout tags/v0.13.0rc1
 ```
 
-你依然可以在需要时切回 tag 做严格复现：
+**补充（重要）**：只要你显式切到 `tags/<tag>`，就会进入 detached HEAD，之后想继续更新请切回分支：
 
 ```bash
-git switch --detach tags/v0.13.0rc1
+git switch v0.13.0rc1-dev
+# 然后再更新
+git pull --ff-only
 ```
 
 > 内网环境请把 `git clone` URL 替换为内网 mirror；目录命名方式不变。
