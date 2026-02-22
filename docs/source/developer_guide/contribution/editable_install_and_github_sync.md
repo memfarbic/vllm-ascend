@@ -88,12 +88,6 @@ export SRC_MOUNT_WORKSPACE_HOST="$(pwd)"
 bash tools/run_ascend_container.sh
 ```
 
-启动后进入容器：
-
-```bash
-docker exec -it "$CONTAINER_NAME" bash
-```
-
 #### 方式 B：单条 `docker run`（临时复制粘贴）
 
 ```bash
@@ -121,6 +115,14 @@ docker run --privileged --name "$CONTAINER_NAME" --net=host --ipc=host -itd \
 ```
 
 > 如果机器上有 `davinci0..davinci15`，需额外加 `--device=/dev/davinci0 ...`；方式 A 的脚本会自动处理。
+
+
+启动后进入容器：
+
+```bash
+docker exec -it "$CONTAINER_NAME" bash
+```
+
 
 ### 2.3 容器内验证 editable install
 
