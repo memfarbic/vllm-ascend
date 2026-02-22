@@ -10,7 +10,7 @@
 
 ```bash
 # 镜像（默认 v0.13.0rc1-a3）
-export VLLM_IMAGE="${VLLM_IMAGE:-quay.io/ascend/vllm-ascend:v0.13.0rc1-a3}"
+export VLLM_ASCEND_IMAGE="${VLLM_ASCEND_IMAGE:-quay.io/ascend/vllm-ascend:v0.13.0rc1-a3}"
 
 # 分支（默认 v0.13.0rc1-dev，可持续 git pull 更新）
 export VLLM_BRANCH="${VLLM_BRANCH:-v0.13.0rc1-dev}"
@@ -22,7 +22,7 @@ export VLLM_REPO="${VLLM_REPO:-https://github.com/memfarbic/vllm-ascend.git}"
 export CONTAINER_NAME="${CONTAINER_NAME:-vllm_ascend_x}"
 ```
 
-> 如果你要切换版本，只需修改 `VLLM_BRANCH` 和 `VLLM_IMAGE`，其余命令不用改。
+> 如果你要切换版本，只需修改 `VLLM_BRANCH` 和 `VLLM_ASCEND_IMAGE`，其余命令不用改。
 
 ---
 
@@ -78,7 +78,7 @@ git describe --tags --always
 ```bash
 cd ~/work/vllm-ascend-"$VLLM_BRANCH"
 
-export IMAGE="$VLLM_IMAGE"
+export IMAGE="$VLLM_ASCEND_IMAGE"
 export SRC_MOUNT_WORKSPACE_HOST="$(pwd)"
 
 # 可选：代理
@@ -117,7 +117,7 @@ docker run --privileged --name "$CONTAINER_NAME" --net=host --ipc=host -itd \
   ${HTTP_PROXY:+-e http_proxy="$HTTP_PROXY"} \
   ${HTTPS_PROXY:+-e https_proxy="$HTTPS_PROXY"} \
   -e no_proxy="${NO_PROXY:-localhost,127.0.0.1,0.0.0.0}" \
-  "$VLLM_IMAGE" bash
+  "$VLLM_ASCEND_IMAGE" bash
 ```
 
 > 如果机器上有 `davinci0..davinci15`，需额外加 `--device=/dev/davinci0 ...`；方式 A 的脚本会自动处理。

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONTAINER_NAME="${CONTAINER_NAME:-vllm_ascend_x}"
-IMAGE="${IMAGE:-quay.io/ascend/vllm-ascend:v0.13.0rc1-a3}"
+IMAGE="${VLLM_ASCEND_IMAGE:-quay.io/ascend/vllm-ascend:v0.13.0rc1-a3}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
