@@ -189,6 +189,118 @@ git push -u origin <your-branch-name>
 
 ---
 
+## 5.3 内网环境（只能 clone）怎么做？
+
+你问的“在内网只能 clone 的环境里，是否在 docker 里面直接把 `vllm-ascend` 的 remote url 设置成当前项目的就可以了？”需要拆成两件事来看：
+
+### 5.3.1 结论（先说清楚）
+
+- **如果你的内网 Git 只允许 clone/fetch（只读）**：
+  - 把 remote URL 指到内网仓库（镜像仓库）**可以解决拉代码/同步 upstream 代码**的问题
+  - 但它**不能解决 push**（提交同步回 GitHub/内网仓库）的问题——因为权限/网络策略不允许写
+- **如果内网仓库对你是可写（允许 push）**：
+  - 你可以在容器内把 `origin` 指向内网仓库并直接 `git push` 到内网
+  - 后续再由“有出网权限/有 GitHub 凭据”的环境把内网的提交同步到 GitHub
+
+所以“只改 remote URL”是否足够，取决于：**你能不能 push 到那个 remote**。
+
+### 5.3.2 在容器里把 remote 指到内网仓库（只为 clone/fetch）
+
+如果你的内网只能访问内网 Git（例如 `git.internal.local`），但不能访问 `github.com`，你可以保留两类 remote：
+
+- `upstream`：指向内网的只读镜像（用于拉取）
+- `origin`：指向你可写的目标（可能是内网 fork，也可能是离线导出后在外网机器推送）
+
+示例（容器内）：
+
+```bash
+cd /vllm-workspace/vllm-ascend
+
+# 1) 先看当前 remote
+git remote -v
+
+# 2) 把现有 origin 改名为 upstream（表示它是上游/镜像）
+git remote rename origin upstream
+
+# 3) 添加内网镜像 remote（只读也没问题，主要用于 fetch）
+# 注意：URL 按你们内网实际地址替换
+# git remote add mirror ssh://git@git.internal.local/vllm-ascend.git
+
+git remote add mirror <INTRANET_READONLY_URL>
+
+# 4) 拉取更新
+
+git fetch mirror --tags
+```
+
+如果你想让默认的 `git pull` 使用内网镜像，可以把 `upstream`/`mirror` 作为你日常 fetch 的 remote。
+
+### 5.3.3 只有 clone 权限时，怎么把修改“带出去/同步到 GitHub”？
+
+当你无法 push（只读）时，推荐三种方式：
+
+#### 方式 A：`git format-patch` 导出补丁（最常用）
+
+在内网容器里把你做的提交导出成 patch 文件：
+
+```bash
+cd /vllm-workspace/vllm-ascend
+
+# 假设你在分支上产生了若干提交
+# 导出最近 N 个提交
+mkdir -p /tmp/patches
+
+git format-patch -N -o /tmp/patches
+```
+
+把 `/tmp/patches/*.patch` 拷贝到有 GitHub 推送权限的机器上，然后：
+
+```bash
+git am /path/to/patches/*.patch
+```
+
+#### 方式 B：`git bundle` 打包整个提交链（适合跨多分支/含 tag）
+
+```bash
+cd /vllm-workspace/vllm-ascend
+
+# 打包当前分支的提交（示例：从某个 base 起到 HEAD）
+git bundle create /tmp/vllm-ascend.bundle <base>..HEAD
+```
+
+在外网机器上：
+
+```bash
+git clone /tmp/vllm-ascend.bundle repo
+# 或 git fetch /tmp/vllm-ascend.bundle <branch>
+```
+
+#### 方式 C：宿主机持久化源码 + 外部环境推送（长期推荐）
+
+即使内网容器不能 push，你也可以把代码放在宿主机持久化目录，容器只负责运行环境（见 5.1）。
+然后在“有推送权限”的环境（可能是另一台机或同一台机的另一个网络域）完成 `git push`。
+
+### 5.3.4 什么时候“直接把 origin 指到内网仓库”是正确的？
+
+当满足以下条件时，你可以直接在容器内把 `origin` 指到内网仓库并推送：
+
+- 你对内网仓库有写权限（push）
+- 内网仓库用于团队协作/代码审查（例如内网 GitLab/Gitea）
+
+```bash
+cd /vllm-workspace/vllm-ascend
+
+git remote set-url origin <INTRANET_WRITE_URL>
+
+git push -u origin <your-branch>
+```
+
+之后再在外网环境把内网仓库同步到 GitHub（这一步通常由 CI 或镜像同步任务完成）。
+
+
+
+---
+
 ## 6. 什么时候需要自己 build 镜像？什么时候不需要？
 
 ### 6.1 不需要 build 的典型情况
