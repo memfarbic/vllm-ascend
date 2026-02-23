@@ -526,10 +526,10 @@ python3 benchmarks/scripts/dsa_trace/prepare_burstgpt.py \
 
 ```
 
-> 如果你下载 BurstGPT 时遇到内网自签 TLS 证书（curl: (60)）问题：
+> 如果你在内网/代理环境下载 BurstGPT 遇到 TLS 证书链问题（curl: (60)），本脚本默认使用 `-k`（不校验证书）。
 >
-> - 推荐：`export VLLM_ASCEND_CURL_CA_BUNDLE=/path/to/ca-bundle.pem`
-> - 临时（不推荐）：`export VLLM_ASCEND_CURL_INSECURE=1`（禁用 TLS 校验）
+> - **推荐开启校验**：`export VLLM_ASCEND_CURL_INSECURE=0`，并（可选但推荐）提供内网 CA：`export VLLM_ASCEND_CURL_CA_BUNDLE=/path/to/ca-bundle.pem`
+> - **保持默认不校验**：`export VLLM_ASCEND_CURL_INSECURE=1`
 bash
 # 下载
 bash benchmarks/scripts/dsa_trace/download_datasets.sh
