@@ -16,7 +16,6 @@ def _get_first(example: dict[str, Any], keys: list[str]) -> Any:
 
 
 def _format_mcq(context: str, question: str, choices: list[str]) -> str:
-    # Keep the prompt structure stable for replay.
     choices_lines = "\n".join([f"{chr(ord('A') + i)}. {c}" for i, c in enumerate(choices)])
     return (
         "Context:\n"
@@ -29,11 +28,23 @@ def _format_mcq(context: str, question: str, choices: list[str]) -> str:
     )
 
 
+def _choose_split(ds_dict: Any) -> str:
+    # Prefer eval-like splits, fallback to train, then first available.
+    for name in ["test", "validation", "val", "train"]:
+        if name in ds_dict:
+            return name
+    return next(iter(ds_dict.keys()))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--output", required=True, help="Output prompts JSONL path")
     ap.add_argument("--dataset", default="zai-org/LongBench-v2", help="Hugging Face dataset id")
-    ap.add_argument("--split", default="test", help="HF split (best effort)")
+    ap.add_argument(
+        "--split",
+        default="auto",
+        help="HF split. Use 'auto' to pick an available split (default).",
+    )
 
     ap.add_argument(
         "--num-prompts",
@@ -76,7 +87,24 @@ def main() -> None:
     except Exception as e:
         raise RuntimeError("Please install `datasets` to prepare LongBench v2 prompts.") from e
 
-    ds = load_dataset(args.dataset, split=args.split)
+    split = str(args.split)
+    if split == "auto":
+        ds_dict = load_dataset(args.dataset)
+        split = _choose_split(ds_dict)
+        ds = ds_dict[split]
+    else:
+        try:
+            ds = load_dataset(args.dataset, split=split)
+        except Exception as e:
+            # Common failure: unknown split. Provide available splits.
+            try:
+                ds_dict = load_dataset(args.dataset)
+                available = list(ds_dict.keys())
+            except Exception:
+                available = []
+            hint = f" Available splits: {available}" if available else ""
+            raise RuntimeError(f"Failed to load dataset split '{split}'.{hint}") from e
+
     items = list(ds)
     rng = random.Random(args.seed)
     rng.shuffle(items)
@@ -118,6 +146,7 @@ def main() -> None:
                 "max_tokens": int(args.max_new_tokens),
                 "dataset": "longbenchv2",
                 "meta": {
+                    "split": split,
                     "min_context_chars": int(args.min_context_chars),
                     "min_prompt_chars": int(args.min_prompt_chars),
                 },

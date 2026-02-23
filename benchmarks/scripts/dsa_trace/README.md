@@ -485,7 +485,7 @@ python3 benchmarks/scripts/dsa_trace/prepare_ruler.py \
 
 **用途**：真实长任务、多场景（文档 QA、多文档、代码仓库理解等），证明 RULER 上的观测不是合成数据特例。
 
-**数据源**：HuggingFace `zai-org/LongBench-v2`（别名 `THUDM/LongBench-v2`）
+**数据源**：HuggingFace `zai-org/LongBench-v2`（别名 `THUDM/LongBench-v2`）。该数据集在部分镜像/版本下可能只有 `train` split，本脚本默认使用 `--split auto` 自动选择可用 split。
 
 > 说明：
 >
@@ -583,7 +583,8 @@ python3 benchmarks/scripts/dsa_trace/replay_openai.py \
   --endpoint http://127.0.0.1:8000/v1/completions \
   --model <model_name> \
   --prompts-jsonl benchmarks/datasets/dsa_trace/sharegpt.prompts.jsonl \
-  --concurrency 16
+  --concurrency 16 \
+  --override-max-tokens 128
 ```
 
 把 `--prompts-jsonl` 换成 `ruler.prompts.jsonl` / `longbenchv2.prompts.jsonl` 即可。

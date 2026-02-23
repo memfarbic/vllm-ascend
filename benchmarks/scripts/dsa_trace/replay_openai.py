@@ -98,6 +98,14 @@ def main() -> None:
     ap.add_argument("--timeout-s", type=float, default=600.0)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--temperature", type=float, default=0.0)
+    ap.add_argument(
+        "--override-max-tokens",
+        "--override-max-new-tokens",
+        dest="override_max_tokens",
+        type=int,
+        default=0,
+        help="If >0, override max_tokens for all requests (prompts/workload).",
+    )
     args = ap.parse_args()
 
     if not args.prompts_jsonl and not args.workload_jsonl:
@@ -128,7 +136,7 @@ def main() -> None:
     if args.prompts_jsonl:
         prompts = _load_prompts_jsonl(Path(args.prompts_jsonl))
         with ThreadPoolExecutor(max_workers=args.concurrency) as ex:
-            futs = [ex.submit(_send, p.prompt, p.max_tokens) for p in prompts]
+            futs = [ex.submit(_send, p.prompt, (args.override_max_tokens if args.override_max_tokens > 0 else p.max_tokens)) for p in prompts]
             for _ in as_completed(futs):
                 pass
         print(f"Done. ok={ok} fail={fail}")
@@ -144,7 +152,7 @@ def main() -> None:
             if target > now:
                 time.sleep(target - now)
             prompt = _synthetic_prompt(r.input_len_tokens)
-            max_tokens = int(max(1, r.output_len_tokens))
+            max_tokens = int(args.override_max_tokens) if args.override_max_tokens > 0 else int(max(1, r.output_len_tokens))
             futs.append(ex.submit(_send, prompt, max_tokens))
         for _ in as_completed(futs):
             pass
