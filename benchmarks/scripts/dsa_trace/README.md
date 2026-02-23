@@ -492,6 +492,7 @@ python3 benchmarks/scripts/dsa_trace/prepare_ruler.py \
 > - `--num-prompts 200` 表示只采样写出 200 条请求（用于采 trace 时通常够用；想全量可用 `--num-prompts -1`）。
 > - `--max-tokens/--max-new-tokens` 限制的是“生成的新 token 数”（输出长度），**不是输入 prompt 的长度**。
 > - 如果你要强制采集长上下文样本（例如 15k+ token 级别），建议使用 `--min-context-chars` 做筛选（字符数是近似指标）。
+- 如果你要避免超长样本导致服务端 400（超过模型最大上下文），可在 prepare 阶段使用 `--max-context-chars` / `--max-prompt-chars` 做上限过滤（默认 0=不限制）。
 
 ```bash
 python3 benchmarks/scripts/dsa_trace/prepare_longbenchv2.py \
@@ -564,6 +565,10 @@ bash benchmarks/scripts/dsa_trace/download_datasets.sh
 
 ### Step 3：启动 server（开启 trace）
 
+> 多机/多进程建议：为避免不同节点/进程写同一目录造成混乱，建议把 trace 目录按节点隔离（共享盘更好）：
+>
+> `export VLLM_ASCEND_TRACE_DIR=/mnt/shared/trace_out/$HOSTNAME`
+
 ```bash
 export VLLM_ASCEND_DSA_TRACE=1
 export VLLM_ASCEND_TRACE_DIR=./trace_out
@@ -577,6 +582,7 @@ bash benchmarks/scripts/dsa_trace/run_server.sh <model_path_or_id> [port]
 ### Step 4：回放请求
 
 > 你可以用 `--override-max-tokens` 在回放阶段统一控制输出长度；用 `--max-prompt-chars` 跳过过长输入（避免超过模型最大上下文）。
+> 回放结束会打印 `ok/fail/skipped/too_long`：`skipped`=被 `--max-prompt-chars` 跳过的请求数，`too_long`=服务端返回 400（超过模型最大上下文）的次数。
 
 **prompts 类（ShareGPT / RULER / LongBench v2）：**
 
