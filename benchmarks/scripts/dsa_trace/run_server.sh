@@ -17,6 +17,20 @@ export VLLM_ASCEND_DSA_TRACE="${VLLM_ASCEND_DSA_TRACE:-1}"
 export VLLM_ASCEND_TRACE_DIR="${VLLM_ASCEND_TRACE_DIR:-./trace_out}"
 export VLLM_ASCEND_DSA_TRACE_DECODE_ONLY="${VLLM_ASCEND_DSA_TRACE_DECODE_ONLY:-1}"
 
+# Optional trace labeling (useful for multi-process/multi-node)
+export VLLM_ASCEND_TRACE_TAG="${VLLM_ASCEND_TRACE_TAG:-}"
+
+# One run id per server start: all workers should share it.
+# If you run multi-node, set this on node0 and export the same value on other nodes.
+if [[ -z "${VLLM_ASCEND_TRACE_RUN_ID:-}" ]]; then
+  TS="$(date +%Y%m%d_%H%M%S)"
+  if [[ -n "${VLLM_ASCEND_TRACE_TAG}" ]]; then
+    export VLLM_ASCEND_TRACE_RUN_ID="dsa_${TS}_${VLLM_ASCEND_TRACE_TAG}"
+  else
+    export VLLM_ASCEND_TRACE_RUN_ID="dsa_${TS}"
+  fi
+fi
+
 # Defaults aligned with Ascend A3 single-node (16 NPU) serving.
 TP_SIZE="${TP_SIZE:-16}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-100000}"
@@ -28,6 +42,8 @@ echo "Tracing enabled:"
 echo "  VLLM_ASCEND_DSA_TRACE=${VLLM_ASCEND_DSA_TRACE}"
 echo "  VLLM_ASCEND_TRACE_DIR=${VLLM_ASCEND_TRACE_DIR}"
 echo "  VLLM_ASCEND_DSA_TRACE_DECODE_ONLY=${VLLM_ASCEND_DSA_TRACE_DECODE_ONLY}"
+echo "  VLLM_ASCEND_TRACE_RUN_ID=${VLLM_ASCEND_TRACE_RUN_ID}"
+echo "  VLLM_ASCEND_TRACE_TAG=${VLLM_ASCEND_TRACE_TAG}"
 
 echo "Starting server on port ${PORT}..."
 echo "  MODEL=${MODEL}"

@@ -3,13 +3,12 @@ from __future__ import annotations
 import atexit
 import os
 import random
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-
-from .trace_writer import JSONLTraceWriter, make_run_id
+from .trace_writer import JSONLTraceWriter, make_file_suffix, make_run_id
 
 
 @dataclass
@@ -52,8 +51,23 @@ class DSATracer:
         self._layer_filter = _env_str("VLLM_ASCEND_DSA_TRACE_LAYER_FILTER", "").strip()
         self._trace_dir = _env_str("VLLM_ASCEND_TRACE_DIR", "./trace_out")
 
-        self._run_id = make_run_id(prefix="dsa")
-        self._writer = JSONLTraceWriter(self._trace_dir, self._run_id) if self._enabled else None
+        trace_run_id = _env_str("VLLM_ASCEND_TRACE_RUN_ID", "").strip()
+        trace_tag = _env_str("VLLM_ASCEND_TRACE_TAG", "").strip()
+        trace_tag = re.sub(r"[^A-Za-z0-9._-]+", "_", trace_tag).strip("_")
+
+        if trace_run_id:
+            self._run_id = trace_run_id
+        else:
+            base = make_run_id(prefix="dsa")
+            tag_part = f"_{trace_tag}" if trace_tag else ""
+            self._run_id = f"{base}{tag_part}"
+
+        file_suffix = make_file_suffix()
+        self._writer = (
+            JSONLTraceWriter(self._trace_dir, self._run_id, file_suffix=file_suffix)
+            if self._enabled
+            else None
+        )
 
         self._step_ctx: StepContext | None = None
         self._rng = random.Random(_env_int("VLLM_ASCEND_DSA_TRACE_SEED", 0))
@@ -119,7 +133,7 @@ class DSATracer:
         req_idx: int,
         seq_len_current: int,
         query_token_pos: int | None,
-        selected_token_pos_by_head: np.ndarray,
+        selected_token_pos_by_head: Any,
         selected_block_ids: list[int] | None,
         unique_token_pos_count: int,
         offset_min: int | None,

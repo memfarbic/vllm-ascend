@@ -569,6 +569,13 @@ bash benchmarks/scripts/dsa_trace/download_datasets.sh
 >
 > `export VLLM_ASCEND_TRACE_DIR=/mnt/shared/trace_out/$HOSTNAME`
 
+> 目录命名与多进程文件名：
+>
+> - `VLLM_ASCEND_TRACE_RUN_ID`：同一次 server 启动的所有进程/节点共享同一个 run 目录（推荐）。单机用 `run_server.sh` 会自动生成。多机时请在 node0 生成后，把同一个值导出到其他节点。
+> - `VLLM_ASCEND_TRACE_TAG`：可选标签（如 `ruler`/`longbenchv2`），用于拼到 run 目录名里便于识别。
+> - JSONL 文件名会自动带后缀以避免并发写冲突：优先使用 rank（`RANK`/`HCCL_RANK_ID` 等），并尽量包含 node id。
+>   - node id 优先来源：`VLLM_ASCEND_NODE_ID`（手动指定）→ `SLURM_NODEID`（Slurm）→ `OMPI_COMM_WORLD_NODE_RANK`（OpenMPI）→ `HOSTNAME`。
+
 ```bash
 export VLLM_ASCEND_DSA_TRACE=1
 export VLLM_ASCEND_TRACE_DIR=./trace_out
