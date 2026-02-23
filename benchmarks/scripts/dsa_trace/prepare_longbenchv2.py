@@ -16,21 +16,17 @@ def _get_first(example: dict[str, Any], keys: list[str]) -> Any:
 
 
 def _format_mcq(context: str, question: str, choices: list[str]) -> str:
-    lines = []
-    if context.strip():
-        lines.append("Context:")
-        lines.append(context.strip())
-        lines.append("")
-    lines.append("Question:")
-    lines.append(question.strip())
-    lines.append("")
-    lines.append("Choices:")
-    for i, c in enumerate(choices):
-        label = chr(ord("A") + i)
-        lines.append(f"{label}. {c}")
-    lines.append("")
-    lines.append("Answer with the choice letter only.")
-    return "\n".join(lines)
+    # Keep the prompt structure stable for replay.
+    choices_lines = "\n".join([f"{chr(ord('A') + i)}. {c}" for i, c in enumerate(choices)])
+    return (
+        "Context:\n"
+        f"{context.strip()}\n\n"
+        "Question:\n"
+        f"{question.strip()}\n\n"
+        "Choices:\n"
+        f"{choices_lines}\n\n"
+        "Answer:"
+    )
 
 
 def main() -> None:
@@ -38,8 +34,37 @@ def main() -> None:
     ap.add_argument("--output", required=True, help="Output prompts JSONL path")
     ap.add_argument("--dataset", default="zai-org/LongBench-v2", help="Hugging Face dataset id")
     ap.add_argument("--split", default="test", help="HF split (best effort)")
-    ap.add_argument("--num-prompts", type=int, default=200)
-    ap.add_argument("--max-tokens", type=int, default=128)
+
+    ap.add_argument(
+        "--num-prompts",
+        type=int,
+        default=200,
+        help="How many requests to sample and write (use -1 for all).",
+    )
+
+    # This controls output length (max new tokens), NOT input/context length.
+    ap.add_argument(
+        "--max-new-tokens",
+        "--max-tokens",
+        dest="max_new_tokens",
+        type=int,
+        default=128,
+        help="Max new tokens to generate per request (completion length).",
+    )
+
+    ap.add_argument(
+        "--min-context-chars",
+        type=int,
+        default=0,
+        help="Only keep examples with context length >= this many characters.",
+    )
+    ap.add_argument(
+        "--min-prompt-chars",
+        type=int,
+        default=0,
+        help="Only keep examples with final prompt length >= this many characters.",
+    )
+
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -56,10 +81,12 @@ def main() -> None:
     rng = random.Random(args.seed)
     rng.shuffle(items)
 
+    max_to_write = None if args.num_prompts < 0 else int(args.num_prompts)
+
     written = 0
     with open(out_path, "w", encoding="utf-8") as out:
         for ex in items:
-            if written >= args.num_prompts:
+            if max_to_write is not None and written >= max_to_write:
                 break
             if not isinstance(ex, dict):
                 continue
@@ -70,20 +97,30 @@ def main() -> None:
 
             if not isinstance(context, str) or not isinstance(question, str):
                 continue
+            if args.min_context_chars and len(context) < int(args.min_context_chars):
+                continue
+
             if isinstance(choices, dict) and "text" in choices:
                 choices = choices["text"]
+
             if not isinstance(choices, list) or not choices:
-                # Fallback: treat as open-ended QA.
                 prompt = f"Context:\n{context.strip()}\n\nQuestion:\n{question.strip()}\n\nAnswer:"
             else:
                 choices_str = [str(c).strip() for c in choices if str(c).strip()]
                 prompt = _format_mcq(context, question, choices_str)
 
+            if args.min_prompt_chars and len(prompt) < int(args.min_prompt_chars):
+                continue
+
             record = {
                 "request_id": str(uuid.uuid4()),
                 "prompt": prompt,
-                "max_tokens": int(args.max_tokens),
+                "max_tokens": int(args.max_new_tokens),
                 "dataset": "longbenchv2",
+                "meta": {
+                    "min_context_chars": int(args.min_context_chars),
+                    "min_prompt_chars": int(args.min_prompt_chars),
+                },
             }
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
             written += 1
@@ -93,4 +130,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

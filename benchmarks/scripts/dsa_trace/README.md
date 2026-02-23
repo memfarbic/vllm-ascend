@@ -487,13 +487,21 @@ python3 benchmarks/scripts/dsa_trace/prepare_ruler.py \
 
 **数据源**：HuggingFace `zai-org/LongBench-v2`（别名 `THUDM/LongBench-v2`）
 
+> 说明：
+>
+> - `--num-prompts 200` 表示只采样写出 200 条请求（用于采 trace 时通常够用；想全量可用 `--num-prompts -1`）。
+> - `--max-tokens/--max-new-tokens` 限制的是“生成的新 token 数”（输出长度），**不是输入 prompt 的长度**。
+> - 如果你要强制采集长上下文样本（例如 15k+ token 级别），建议使用 `--min-context-chars` 做筛选（字符数是近似指标）。
+
 ```bash
 python3 benchmarks/scripts/dsa_trace/prepare_longbenchv2.py \
   --output benchmarks/datasets/dsa_trace/longbenchv2.prompts.jsonl \
   --num-prompts 200 \
-  --max-tokens 128 \
+  --max-new-tokens 128 \
+  --min-context-chars 20000 \
   --seed 0
 ```
+
 
 ### 7.3 D3: BurstGPT
 
