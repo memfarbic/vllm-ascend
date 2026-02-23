@@ -106,6 +106,12 @@ def main() -> None:
         default=0,
         help="If >0, override max_tokens for all requests (prompts/workload).",
     )
+    ap.add_argument(
+        "--max-prompt-chars",
+        type=int,
+        default=0,
+        help="If >0, skip sending prompts longer than this many characters.",
+    )
     args = ap.parse_args()
 
     if not args.prompts_jsonl and not args.workload_jsonl:
@@ -115,9 +121,11 @@ def main() -> None:
     lock = threading.Lock()
     ok = 0
     fail = 0
+    skipped = 0
+    too_long = 0
 
     def _send(prompt: str, max_tokens: int) -> None:
-        nonlocal ok, fail
+        nonlocal ok, fail, too_long
         payload = {
             "model": args.model,
             "prompt": prompt,
@@ -129,17 +137,27 @@ def main() -> None:
             _http_post_json(args.endpoint, payload, args.timeout_s)
             with lock:
                 ok += 1
-        except Exception:
+        except Exception as e:
+            msg = str(e)
             with lock:
-                fail += 1
+                if "HTTPError 400" in msg and "maximum context length" in msg and "input tokens" in msg:
+                    too_long += 1
+                else:
+                    fail += 1
 
     if args.prompts_jsonl:
         prompts = _load_prompts_jsonl(Path(args.prompts_jsonl))
+        if args.max_prompt_chars and args.max_prompt_chars > 0:
+            before = len(prompts)
+            prompts = [p for p in prompts if len(p.prompt) <= int(args.max_prompt_chars)]
+            with lock:
+                skipped += before - len(prompts)
+
         with ThreadPoolExecutor(max_workers=args.concurrency) as ex:
             futs = [ex.submit(_send, p.prompt, (args.override_max_tokens if args.override_max_tokens > 0 else p.max_tokens)) for p in prompts]
             for _ in as_completed(futs):
                 pass
-        print(f"Done. ok={ok} fail={fail}")
+        print(f"Done. ok={ok} fail={fail} skipped={skipped} too_long={too_long}")
         return
 
     workload = _load_workload_jsonl(Path(args.workload_jsonl))
@@ -156,7 +174,7 @@ def main() -> None:
             futs.append(ex.submit(_send, prompt, max_tokens))
         for _ in as_completed(futs):
             pass
-    print(f"Done. ok={ok} fail={fail}")
+    print(f"Done. ok={ok} fail={fail} skipped={skipped} too_long={too_long}")
 
 
 if __name__ == "__main__":

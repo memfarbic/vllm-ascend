@@ -76,6 +76,21 @@ def main() -> None:
         help="Only keep examples with final prompt length >= this many characters.",
     )
 
+    
+
+    ap.add_argument(
+        "--max-context-chars",
+        type=int,
+        default=0,
+        help="Only keep examples with context length <= this many characters (0 means no limit).",
+    )
+    ap.add_argument(
+        "--max-prompt-chars",
+        type=int,
+        default=0,
+        help="Only keep examples with final prompt length <= this many characters (0 means no limit).",
+    )
+
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -127,6 +142,8 @@ def main() -> None:
                 continue
             if args.min_context_chars and len(context) < int(args.min_context_chars):
                 continue
+            if args.max_context_chars and len(context) > int(args.max_context_chars):
+                continue
 
             if isinstance(choices, dict) and "text" in choices:
                 choices = choices["text"]
@@ -136,6 +153,9 @@ def main() -> None:
             else:
                 choices_str = [str(c).strip() for c in choices if str(c).strip()]
                 prompt = _format_mcq(context, question, choices_str)
+
+            if args.max_prompt_chars and len(prompt) > int(args.max_prompt_chars):
+                continue
 
             if args.min_prompt_chars and len(prompt) < int(args.min_prompt_chars):
                 continue
@@ -149,6 +169,8 @@ def main() -> None:
                     "split": split,
                     "min_context_chars": int(args.min_context_chars),
                     "min_prompt_chars": int(args.min_prompt_chars),
+                    "max_context_chars": int(args.max_context_chars),
+                    "max_prompt_chars": int(args.max_prompt_chars),
                 },
             }
             out.write(json.dumps(record, ensure_ascii=False) + "\n")

@@ -576,6 +576,8 @@ bash benchmarks/scripts/dsa_trace/run_server.sh <model_path_or_id> [port]
 
 ### Step 4：回放请求
 
+> 你可以用 `--override-max-tokens` 在回放阶段统一控制输出长度；用 `--max-prompt-chars` 跳过过长输入（避免超过模型最大上下文）。
+
 **prompts 类（ShareGPT / RULER / LongBench v2）：**
 
 ```bash
@@ -584,7 +586,8 @@ python3 benchmarks/scripts/dsa_trace/replay_openai.py \
   --model <model_name> \
   --prompts-jsonl benchmarks/datasets/dsa_trace/sharegpt.prompts.jsonl \
   --concurrency 16 \
-  --override-max-tokens 128
+  --override-max-tokens 128 \
+  --max-prompt-chars 300000
 ```
 
 把 `--prompts-jsonl` 换成 `ruler.prompts.jsonl` / `longbenchv2.prompts.jsonl` 即可。
