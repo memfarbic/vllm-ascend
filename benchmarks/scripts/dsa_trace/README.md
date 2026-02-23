@@ -524,7 +524,13 @@ python3 benchmarks/scripts/dsa_trace/prepare_burstgpt.py \
 
 **数据源**：HuggingFace `anon8231489123/ShareGPT_Vicuna_unfiltered`
 
-```bash
+```
+
+> 如果你下载 BurstGPT 时遇到内网自签 TLS 证书（curl: (60)）问题：
+>
+> - 推荐：`export VLLM_ASCEND_CURL_CA_BUNDLE=/path/to/ca-bundle.pem`
+> - 临时（不推荐）：`export VLLM_ASCEND_CURL_INSECURE=1`（禁用 TLS 校验）
+bash
 # 下载
 bash benchmarks/scripts/dsa_trace/download_datasets.sh
 
